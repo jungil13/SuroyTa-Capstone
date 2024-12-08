@@ -1,8 +1,19 @@
-## Project Setup
+## cd backend
 
 ```sh
-cd backend
+npm install
 ```
 ```sh
-cd frontend
+node app.js
 ```
+## cd frontend
+
+```sh
+npm install
+```
+```sh
+npm run dev
+```
+
+## AYAW KALIMOT HIMOG .env file
+
