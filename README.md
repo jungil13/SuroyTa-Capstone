@@ -15,5 +15,5 @@ npm install
 npm run dev
 ```
 
-## AYAW KALIMOT HIMOG .env file
+## AYAW KALIMOT HIMOG .env file sa backend
 
