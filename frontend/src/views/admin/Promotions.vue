@@ -3,9 +3,10 @@ import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2'; // Import SweetAlert
 
-// State variables to hold data
+// Reactive state variables
 const promotions = ref([]);
 const currentPage = ref(1);
+const totalPages = ref(1); // Default to 1 page
 const itemsPerPage = 5;
 const modalImages = ref([]);
 const modalPromotion = ref(null);
@@ -13,71 +14,73 @@ const modalPromotion = ref(null);
 // Base URL for images
 const baseUrl = 'http://localhost:3000';
 
-// Fetch promotions from API
+// Fetch promotions from the API
 const fetchPromotions = async () => {
   try {
-    const response = await axios.get('http://localhost:3000/api/promotions/getallpromotions/', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    const response = await axios.get('http://localhost:3000/api/promotions/getallpromotions', {
+      params: { page: currentPage.value, limit: itemsPerPage },
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     });
-    promotions.value = response.data;
+
+    promotions.value = response.data.data || [];
+    totalPages.value = response.data.totalPages || 1; // Fallback to 1 if undefined
   } catch (error) {
     console.error('Error fetching promotions:', error);
+    Swal.fire('Error', 'Failed to load promotions.', 'error');
   }
 };
 
-// Pagination logic
+// Change page with validation
+const changePage = (page) => {
+  if (page > 0 && page <= totalPages.value) {
+    currentPage.value = page;
+    fetchPromotions();
+  }
+};
+
+// Computed property for paginated promotions
 const paginatedPromotions = computed(() => {
   const startIndex = (currentPage.value - 1) * itemsPerPage;
   return promotions.value.slice(startIndex, startIndex + itemsPerPage);
 });
 
-// Calculate the total number of pages
-const totalPages = computed(() => {
-  return Math.ceil(promotions.value.length / itemsPerPage);
-});
-
-// Methods for changing pages
-const changePage = (page) => {
-  if (page > 0 && page <= totalPages.value) {
-    currentPage.value = page;
-  }
-};
-
-// Method to update promotion status
+// Update promotion status
 const updateStatus = async (promotion) => {
   if (!promotion.newStatus || !['approved', 'pending', 'denied'].includes(promotion.newStatus)) {
-    Swal.fire('Error', 'Please select a valid status', 'error');
+    Swal.fire('Error', 'Please select a valid status.', 'error');
     return;
   }
 
   try {
-    const response = await axios.put(
+    await axios.put(
       `http://localhost:3000/api/promotions/updatepromotionstatus/${promotion.id}`,
       { status: promotion.newStatus },
-      {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      }
+      { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
     );
-    Swal.fire('Success', 'Promotion status updated', 'success');
+    Swal.fire('Success', 'Promotion status updated successfully.', 'success');
     fetchPromotions();
   } catch (error) {
-    Swal.fire('Error', 'Error updating promotion status', 'error');
     console.error('Error updating promotion status:', error);
+    Swal.fire('Error', 'Failed to update promotion status.', 'error');
   }
 };
 
-// Method to open promotion details modal
+// Open promotion details modal
 const viewPromotionDetails = (promotion) => {
   modalPromotion.value = promotion;
-  modalImages.value = [promotion.businessCertificateImage, ...promotion.images.map(img => baseUrl + img)];
+  modalImages.value = [
+    baseUrl + promotion.businessCertificateImage,
+    ...promotion.images.map((img) => baseUrl + img),
+  ];
 };
 
-// Method to close the modal
+// Close modal
 const closeModal = () => {
   modalImages.value = [];
   modalPromotion.value = null;
 };
 
+// Fetch data when the component mounts
 onMounted(fetchPromotions);
 </script>
 
@@ -109,14 +112,14 @@ onMounted(fetchPromotions);
           <td class="px-4 py-2 border-b">{{ new Date(promotion.start_date).toLocaleDateString() }}</td>
           <td class="px-4 py-2 border-b">{{ new Date(promotion.end_date).toLocaleDateString() }}</td>
           <td class="px-4 py-2 border-b">{{ promotion.destination }}</td>
-          <td class="px-4 py-2 border-b font-semibold" :class="{
-            'text-green-500': promotion.status === 'approved',
-            'text-blue-500': promotion.status === 'pending',
-            'text-red-500': promotion.status === 'denied'
-          }">
+          <td class="px-4 py-2 border-b font-semibold"
+              :class="{
+                'text-green-500': promotion.status === 'approved',
+                'text-blue-500': promotion.status === 'pending',
+                'text-red-500': promotion.status === 'denied'
+              }">
             {{ promotion.status }}
           </td>
-
           <td class="px-4 py-2 border-b">
             <select v-model="promotion.newStatus" class="border border-gray-300 p-2">
               <option value="approved">Approve</option>
@@ -126,16 +129,14 @@ onMounted(fetchPromotions);
           </td>
           <td>
             <button @click="updateStatus(promotion)"
-              class="ml-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700 flex items-center space-x-2">
-              <i class="fas fa-sync-alt"></i>
-              <span>Update</span>
+              class="ml-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700">
+              Update
             </button>
           </td>
           <td>
             <button @click="viewPromotionDetails(promotion)"
-              class="ml-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-700 flex items-center space-x-2">
-              <i class="fas fa-eye"></i>
-              <span>View</span>
+              class="ml-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-700">
+              View
             </button>
           </td>
         </tr>
@@ -144,46 +145,60 @@ onMounted(fetchPromotions);
 
     <!-- Pagination -->
     <div class="mt-6 flex justify-center space-x-4">
-      <button @click="changePage(currentPage.value - 1)" :disabled="currentPage === 1"
+      <button
+        @click="changePage(currentPage.value - 1)"
+        :disabled="currentPage.value === 1"
         class="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-teal-700 transition disabled:opacity-50">
         Previous
       </button>
 
-      <span class="px-4 py-2 text-lg font-semibold">{{ currentPage }}</span>
+      <button
+        v-for="page in totalPages"
+        :key="page"
+        @click="changePage(page)"
+        :class="{
+          'bg-teal-500 text-white': currentPage.value === page,
+          'bg-gray-200': currentPage.value !== page,
+        }"
+        class="px-4 py-2 rounded-lg">
+        {{ page }}
+      </button>
 
-      <button @click="changePage(currentPage.value + 1)" :disabled="currentPage === totalPages"
+      <button
+        @click="changePage(currentPage.value + 1)"
+        :disabled="currentPage.value === totalPages.value"
         class="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-teal-700 transition disabled:opacity-50">
         Next
       </button>
     </div>
+  </div>
 
-    <!-- Promotion Details Modal -->
-    <div v-if="modalPromotion" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div class="bg-white p-6 rounded-lg max-w-lg">
-        <h2 class="text-2xl font-semibold">{{ modalPromotion.title }}</h2>
-        <p class="mt-2">{{ modalPromotion.description }}</p>
-        <p class="mt-4">Destination: {{ modalPromotion.destination }}</p>
-        <p>Start Date: {{ new Date(modalPromotion.start_date).toLocaleDateString() }}</p>
-        <p>End Date: {{ new Date(modalPromotion.end_date).toLocaleDateString() }}</p>
-        <p>Status: {{ modalPromotion.status }}</p>
-        <p class="mb-6">Owner: {{ modalPromotion.author.username }}</p>
+  <!-- Promotion Details Modal -->
+  <div v-if="modalPromotion" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-lg max-w-lg">
+      <h2 class="text-2xl font-semibold">{{ modalPromotion.title }}</h2>
+      <p class="mt-2">{{ modalPromotion.description }}</p>
+      <p class="mt-4">Destination: {{ modalPromotion.destination }}</p>
+      <p>Start Date: {{ new Date(modalPromotion.start_date).toLocaleDateString() }}</p>
+      <p>End Date: {{ new Date(modalPromotion.end_date).toLocaleDateString() }}</p>
+      <p>Status: {{ modalPromotion.status }}</p>
+      <p class="mb-6">Owner: {{ modalPromotion.author.username }}</p>
 
-        <!-- Display Business Certificate Image -->
-        <p class="font-bold">Business Certificate : </p>
-        <img :src="baseUrl + modalPromotion.businessCertificateImage" alt="Business Certificate"
-          class="mt-4 w-full rounded cursor-pointer" />
+      <!-- Display Business Certificate Image -->
+      <p class="font-bold">Business Certificate:</p>
+      <img :src="baseUrl + modalPromotion.businessCertificateImage" alt="Business Certificate"
+        class="mt-4 w-full rounded cursor-pointer" />
 
-        <!-- Display Other Promotion Images -->
-        <div v-if="modalImages.length">
-          <h3 class="mt-4 font-semibold">Additional Images:</h3>
-          <div v-for="image in modalImages" :key="image" class="inline-block mt-2 mr-2">
-            <img :src="image" alt="Additional Image" class="w-32 h-32 object-cover cursor-pointer"
-              @click="image && window.open(image, '_blank')" />
-          </div>
+      <!-- Display Additional Images -->
+      <div v-if="modalImages.length">
+        <h3 class="mt-4 font-semibold">Additional Images:</h3>
+        <div v-for="image in modalImages" :key="image" class="inline-block mt-2 mr-2">
+          <img :src="image" alt="Additional Image" class="w-32 h-32 object-cover cursor-pointer"
+            @click="image && window.open(image, '_blank')" />
         </div>
-
-        <button @click="closeModal" class="mt-4 text-white bg-red-500 p-2 rounded">Close</button>
       </div>
+
+      <button @click="closeModal" class="mt-4 text-white bg-red-500 p-2 rounded">Close</button>
     </div>
   </div>
 </template>
