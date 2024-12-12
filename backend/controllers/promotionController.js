@@ -88,13 +88,18 @@ exports.createPromotion = async (req, res) => {
 // Get All Promotions
 exports.getAllPromotions = async (req, res) => {
   try {
-    const promotions = await new Promise((resolve, reject) => {
-      Promotion.getAllPromotions((err, promotions) => {
+    // Extract pagination parameters with default values
+    const page = parseInt(req.query.page, 10) || 1; // Default to page 1
+    const limit = parseInt(req.query.limit, 10) || 10; // Default to 10 items per page
+    const offset = (page - 1) * limit;
+
+    const [promotions, totalCount] = await new Promise((resolve, reject) => {
+      Promotion.getAllPromotionsWithPagination(limit, offset, (err, results, count) => {
         if (err) {
           console.error('Error fetching promotions:', err);
           return reject(err);
         }
-        resolve(promotions);
+        resolve([results, count]);
       });
     });
 
@@ -102,7 +107,18 @@ exports.getAllPromotions = async (req, res) => {
       return res.status(404).json({ message: 'No promotions found' });
     }
 
-    res.status(200).json(promotions);
+    // Calculate total pages
+    const totalPages = Math.ceil(totalCount / limit);
+
+    res.status(200).json({
+      data: promotions,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+      },
+    });
   } catch (err) {
     console.error('Server error:', err);
     res.status(500).json({
