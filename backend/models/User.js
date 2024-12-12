@@ -1,10 +1,10 @@
 const db = require('../config/db');
 
 class User {
-  static register(username, email, password, profilePhoto, callback) {
-    const sql = 'INSERT INTO users (username, email, password, profile_photo) VALUES (?, ?, ?, ?)';
-    db.query(sql, [username, email, password, profilePhoto], callback);
-  }
+  static register(username, email, password, profilePhoto, userType, callback) {
+    const sql = 'INSERT INTO users (username, email, password, profile_photo, user_type) VALUES (?, ?, ?, ?, ?)';
+    db.query(sql, [username, email, password, profilePhoto, userType], callback);
+}
 
   static findByUsername(username, callback) {
     // Add 'is_restricted' to the selected fields
