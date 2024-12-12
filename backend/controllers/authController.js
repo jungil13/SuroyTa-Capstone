@@ -56,12 +56,14 @@ const register = (req, res) => {
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) return res.status(500).json({ error: err });
 
-    User.register(username, email, hash, profilePhoto, (error, results) => {
+    // Register the user with user_type set to 'Regular'
+    User.register(username, email, hash, profilePhoto, 'Regular', (error, results) => {
       if (error) return res.status(500).json({ error });
       res.status(201).json({ message: 'User registered successfully!' });
     });
   });
 };
+
 
 const login = (req, res) => {
   const { email, password } = req.body;  // Use email instead of username
