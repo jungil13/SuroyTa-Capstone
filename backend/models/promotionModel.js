@@ -1,7 +1,7 @@
 const db = require("../config/db");
 
 const Promotion = {
-  getAllPromotions(callback) {
+  getAllPromotionsWithPagination(limit, offset, callback) {
     const query = `
       SELECT 
         p.id, 
@@ -22,30 +22,44 @@ const Promotion = {
       LEFT JOIN users u ON p.author_id = u.user_id
       LEFT JOIN ratings r ON p.id = r.promotion_id      -- Join ratings table
       GROUP BY p.id
+      LIMIT ? OFFSET ?
     `;
   
-    db.query(query, (err, results) => {
+    const countQuery = `
+      SELECT COUNT(*) AS totalCount FROM promotion
+    `;
+  
+    db.query(query, [limit, offset], (err, results) => {
       if (err) {
         console.error("Database error:", err);
         return callback(err);
       }
   
-      const promotions = results.map((promo) => ({
-        ...promo,
-        images: promo.images ? promo.images.split(",") : [],  // Always return an array
-        author: {
-          username: promo.author_username || "Unknown",
-          profilePhoto: promo.author_profile_photo || "/path/to/default-avatar.jpg",  // Fallback if no photo
-        },
-        status: promo.status || "Unknown",
-        businessCertificateImage: promo.business_certificate_image || "/path/to/default-certificate.jpg",  // Fallback image
-        averageRating: parseFloat(promo.average_rating).toFixed(2), // Ensure a consistent decimal format
-        totalRatings: promo.total_ratings || 0, // Fallback if no ratings
-      }));
+      db.query(countQuery, (countErr, countResults) => {
+        if (countErr) {
+          console.error("Count query error:", countErr);
+          return callback(countErr);
+        }
   
-      callback(null, promotions);
+        const totalCount = countResults[0].totalCount;
+  
+        const promotions = results.map((promo) => ({
+          ...promo,
+          images: promo.images ? promo.images.split(",") : [],  // Always return an array
+          author: {
+            username: promo.author_username || "Unknown",
+            profilePhoto: promo.author_profile_photo || "/path/to/default-avatar.jpg",  // Fallback if no photo
+          },
+          status: promo.status || "Unknown",
+          businessCertificateImage: promo.business_certificate_image || "/path/to/default-certificate.jpg",  // Fallback image
+          averageRating: parseFloat(promo.average_rating).toFixed(2), // Ensure a consistent decimal format
+          totalRatings: promo.total_ratings || 0, // Fallback if no ratings
+        }));
+  
+        callback(null, promotions, totalCount);
+      });
     });
-  },
+  },  
   
 
   createPromotion: (data, imageUrls, callback) => {
